@@ -75,8 +75,20 @@ class MainActivity : Activity() {
         handleLink(intent)
     }
 
+    // Back navigation. Android 13+ uses OnBackInvokedCallback: we only register it while there is a
+    // screen to go back to, so the keyboard closes first and, on the first screen, the system's own
+    // "back to home" gesture works. Older versions still call onBackPressed.
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() = back()
+
+    private var backCallback: Any? = null
+
+    private fun syncBack() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val cb = (backCallback ?: android.window.OnBackInvokedCallback { back() }.also { backCallback = it }) as android.window.OnBackInvokedCallback
+        onBackInvokedDispatcher.unregisterOnBackInvokedCallback(cb)
+        if (stack.size > 1) onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb)
+    }
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
@@ -231,6 +243,7 @@ class MainActivity : Activity() {
 
     private fun show(s: Screen) {
         render(s)
+        syncBack()
         s.onShow()
     }
 
