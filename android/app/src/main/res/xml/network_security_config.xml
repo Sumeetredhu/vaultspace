@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Certificate pinning: the app trusts ONLY the VaultSpace server certificate bundled in
+     res/raw. System and user-installed CAs are not trusted, so an interception proxy (or a
+     compromised CA) cannot read or change the app's traffic. Cleartext HTTP is not allowed. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="@raw/server_cert" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
