@@ -1,0 +1,51 @@
+# VaultSpace
+
+Secure storage and controlled sharing of sensitive documents. This is the Group 15 project for Usable Security & Privacy, Monsoon 2026.
+
+- **Encrypted on the phone.** Files and their names are encrypted before upload; the server stores only ciphertext.
+- **End-to-end sharing.** The owner sets expiry, an open limit, the permission (view only / view & download / can update) and an optional passphrase, and can revoke at any time. The server enforces every rule on every request.
+- **Original code, no libraries.** About 4,900 lines of original code. The server uses only Node.js built-ins; the app uses only the Android framework (`dependencies { }` is empty).
+
+```
+vaultspace/
+  server/              Node.js server (no npm dependencies)
+    src/               app code (see docs/VIVA_GUIDE.md §7 for a file-by-file tour)
+    test/api.test.js   16 security tests (access control, races, limits, enumeration...)
+    scripts/make-cert.sh   TLS key + self-signed certificate that the app pins
+    deploy/            VM setup script, hardened systemd unit, config template
+  android/             Android app (Kotlin, Android framework only)
+  docs/
+    VIVA_GUIDE.md      how everything works and why: start here
+    SECURITY.md        security requirements, threat model, controls, tests
+    USER_GUIDE.md      for testers
+```
+
+## Run the server locally
+Needs Node.js 22.13 or newer.
+```bash
+cd server
+bash scripts/make-cert.sh          # creates data/tls/{key,cert}.pem
+npm start                          # https://0.0.0.0:8443, prints email codes to the console
+npm test                           # runs the security test suite
+```
+
+## Build the app
+Needs the Android SDK (API 35) and JDK 17+.
+1. Copy `server/data/tls/cert.pem` to `android/app/src/main/res/raw/server_cert.pem`.
+2. Set `vsServer` in `android/gradle.properties`. `https://10.0.2.2:8443` reaches the laptop from the emulator.
+3. Build:
+   ```bash
+   cd android
+   ./gradlew assembleDebug            # app/build/outputs/apk/debug/app-debug.apk
+   ./gradlew assembleRelease          # signed if keystore.properties exists
+   ```
+
+## Deploy to a VM
+Copy the `server` folder to the VM, then run:
+```bash
+sudo bash server/deploy/setup-vm.sh <vm-ip>
+```
+After that:
+1. Put the email settings in `/etc/vaultspace.env`.
+2. Copy `/var/lib/vaultspace/tls/cert.pem` into the app.
+3. Build the release APK.
