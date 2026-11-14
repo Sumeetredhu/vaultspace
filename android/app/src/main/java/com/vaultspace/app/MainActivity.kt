@@ -415,7 +415,7 @@ class MainActivity : Activity() {
     }
 
     fun offerBiometric(authKey: ByteArray) {
-        if (DeviceUnlock.available(this) && !DeviceUnlock.isSetUp()) {
+        if (DeviceUnlock.available(this) && !DeviceUnlock.isSetUpFor(Session.email)) {
             confirm("Unlock with your fingerprint?",
                 "Next time, open VaultSpace with your fingerprint instead of typing your password. Your password is still needed on a new phone.",
                 "Turn on") { enableBiometric(authKey) }
@@ -432,6 +432,7 @@ class MainActivity : Activity() {
                 secret.fill(0)
                 if (ok) {
                     Prefs.deviceId = deviceId
+                    Prefs.deviceEmail = Session.email
                     snack("Fingerprint unlock is on for this phone.")
                 } else {
                     pool.execute { runCatching { Api.delete("/devices/$deviceId") } }

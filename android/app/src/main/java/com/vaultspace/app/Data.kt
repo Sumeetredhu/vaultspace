@@ -62,6 +62,9 @@ object Prefs {
     var deviceId: String?
         get() = sp.getString("deviceId", null)
         set(v) = sp.edit().putString("deviceId", v).apply()
+    var deviceEmail: String?          // which account the fingerprint unlock on this phone belongs to
+        get() = sp.getString("deviceEmail", null)
+        set(v) = sp.edit().putString("deviceEmail", v).apply()
 }
 
 /** File details that only the owner and recipients can read: stored encrypted with the file key. */

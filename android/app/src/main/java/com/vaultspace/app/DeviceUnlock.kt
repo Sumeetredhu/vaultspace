@@ -38,6 +38,13 @@ object DeviceUnlock {
 
     fun isSetUp() = Prefs.deviceBlob != null
 
+    /** Fingerprint unlock is tied to one account, so it can never open someone else's vault. */
+    fun isSetUpFor(email: String) = isSetUp() && Prefs.deviceEmail == email
+
+    fun forgetFor(email: String) {
+        if (Prefs.deviceEmail == email) forget()
+    }
+
     private fun keyStore() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
     private fun newKey(): SecretKey {
@@ -55,6 +62,7 @@ object DeviceUnlock {
     fun forget() {
         Prefs.deviceBlob = null
         Prefs.deviceId = null
+        Prefs.deviceEmail = null
         runCatching { keyStore().deleteEntry(ALIAS) }
     }
 

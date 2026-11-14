@@ -54,8 +54,10 @@ class LoginScreen(app: MainActivity, private val notice: String? = null) : Scree
         val email = field("Email", "you@example.com", Field.EMAIL).apply { setText(Prefs.email) }
         val pw = field("Password", "Your password", Field.PASSWORD)
         button("Log in") { login(email.value.lowercase(), pw) }
-        if (DeviceUnlock.isSetUp() && Prefs.email.isNotEmpty()) {
+        val fingerprintFor = Prefs.deviceEmail
+        if (DeviceUnlock.isSetUp() && fingerprintFor != null) {
             button("Unlock with fingerprint", Btn.OUTLINE) { app.biometricLogin() }
+            caption("Fingerprint unlock opens $fingerprintFor.")
         }
         row {
             link("Create an account") { app.push(SignupScreen(app)) }
@@ -293,7 +295,7 @@ class ForgotScreen(app: MainActivity) : Screen(app) {
                 .put("rkByVault", Crypto.b64(Crypto.seal(v, rk, "vs-rk"))))
             Triple(r, rk, k.auth)
         }) { (r, rk, auth) ->
-            DeviceUnlock.forget()   // the server logged out every device
+            DeviceUnlock.forgetFor(email)   // the server logged out every device
             app.signedIn(r, v, null, RecoveryKeyScreen(app, rk, true, auth, "Your new recovery key"))
         }
     }

@@ -133,15 +133,15 @@ class ProfileScreen(app: MainActivity) : Screen(app) {
         card(0, 14) {
             val available = DeviceUnlock.available(app)
             toggle("Fingerprint unlock", if (available) "Open VaultSpace on this phone with your fingerprint" else "Not available: add a fingerprint in your phone's settings first",
-                DeviceUnlock.isSetUp()) { sw, on ->
-                if (on == DeviceUnlock.isSetUp()) return@toggle
+                DeviceUnlock.isSetUpFor(Session.email)) { sw, on ->
+                if (on == DeviceUnlock.isSetUpFor(Session.email)) return@toggle
                 if (!available) { sw.isChecked = false; return@toggle }
                 sw.isChecked = !on   // the switch only moves once the change really happened
                 if (on) {
                     app.withPassword("Enter your password to turn on fingerprint unlock.") { k -> app.enableBiometric(k.auth) { rerender() } }
                 } else {
                     val id = Prefs.deviceId
-                    DeviceUnlock.forget()
+                    DeviceUnlock.forgetFor(Session.email)
                     if (id != null) task(null, work = { Api.delete("/devices/$id") }) {}
                     rerender()
                 }
@@ -172,7 +172,7 @@ class ProfileScreen(app: MainActivity) : Screen(app) {
                 "All your files, versions and shares are deleted for good, and people you shared with lose access. This can't be undone.", "Continue") {
                 app.withPassword("Enter your password to delete your account.") { k ->
                     task("Deleting everything…", work = { Api.post("/account/delete", JSONObject().put("authKey", Crypto.b64(k.auth))) }) {
-                        DeviceUnlock.forget()
+                        DeviceUnlock.forgetFor(Session.email)
                         Prefs.email = ""
                         Session.end()
                         app.reset(LoginScreen(app, "Your account and all its files were deleted."))
@@ -297,7 +297,7 @@ class DevicesScreen(app: MainActivity) : Screen(app) {
         button("Log out everywhere else", Btn.DANGER) {
             app.confirm("Log out everywhere else?", "Every other session ends and fingerprint unlock is turned off on all phones.", "Log out others") {
                 task("Logging out…", work = { Api.post("/sessions/logout-others") }) {
-                    DeviceUnlock.forget()
+                    DeviceUnlock.forgetFor(Session.email)
                     app.snack("Other sessions were logged out.")
                     onShow()
                 }
@@ -343,7 +343,7 @@ class ChangePasswordScreen(app: MainActivity) : Screen(app) {
                 Api.post("/account/password", JSONObject().put("authKey", Crypto.b64(old.auth)).put("kdfSalt", Crypto.b64(salt))
                     .put("newAuthKey", Crypto.b64(k.auth)).put("vaultByPw", Crypto.b64(Crypto.seal(k.kek, Session.vault, "vs-vault"))))
             }) {
-                DeviceUnlock.forget()
+                DeviceUnlock.forgetFor(Session.email)
                 app.snack("Password changed. Your other devices were logged out.")
                 app.back()
             }
