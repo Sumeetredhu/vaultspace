@@ -7,7 +7,7 @@ VaultSpace keeps sensitive documents (Aadhaar, marksheets, bank statements…) e
   1. Download `VaultSpace.apk` from: **&lt;APK link&gt;**
   2. Open it and allow "Install unknown apps" for your browser or file manager when asked.
 - **No Android phone?** Use the Android Studio emulator (any Android 9+ image), or the course's cloud simulator, and drag the APK onto it.
-- **Server:** the app talks only to the VaultSpace server at **&lt;server address&gt;**. You don't need to set anything up.
+- **Network:** the app talks only to the VaultSpace server on the IIIT-Delhi network (`192.168.2.242`). Your phone must be on the campus network (e.g. campus Wi-Fi); there is nothing else to set up.
 
 ## 2. Create an account
 <img src="img/02_signup.png" width="250">
@@ -34,14 +34,14 @@ VaultSpace keeps sensitive documents (Aadhaar, marksheets, bank statements…) e
 1. Open a file and tap **Share file**.
 2. Enter the recipient's email. They need a VaultSpace account with that email.
 3. Choose:
-   - **Access:**
-     - **View only** (default): they can read it in VaultSpace but can't save it.
-     - **View & download.**
-     - **Can update:** they can also upload a new version.
-   - **Access ends after** 24 hours, 7 days, 30 days, or a custom number of hours.
-   - **Open limit:** how many times they can open it.
-   - **Passphrase (optional):** tell it to them in person or on a call, not in the same chat.
-   - **Notify me when it's opened.**
+    - **Access:**
+        - **View only** (default): they can read it in VaultSpace but can't save it.
+        - **View & download.**
+        - **Can update:** they can also upload a new version.
+    - **Access ends after** 24 hours, 7 days, 30 days, or a custom number of hours.
+    - **Open limit:** how many times they can open it.
+    - **Passphrase (optional):** tell it to them in person or on a call, not in the same chat.
+    - **Notify me when it's opened.**
 4. Read the **summary sentence**, tap **Continue**, check the review, then tap **Share securely**.
 5. Optionally tap **Send a heads-up**. The message contains no secret; only their account can open the file.
 
@@ -69,7 +69,7 @@ VaultSpace keeps sensitive documents (Aadhaar, marksheets, bank statements…) e
 - **The clock icon** (Access history) lists everything that happened. **Verify history** checks that nobody altered it.
 
 ## 8. Profile and security settings
-<img src="img/13_profile.png" width="250">
+<img src="img/13_profile.png" width="250"> <img src="img/25_login_fingerprint.png" width="250">
 
 - **See your recovery key**: needs your password.
 - **Fingerprint unlock**: unlock this phone with your fingerprint. It's turned off automatically if fingerprints change.
