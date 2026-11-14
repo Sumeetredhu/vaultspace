@@ -1,0 +1,13 @@
+# Secrets and local data: never commit
+server/data/
+server/.env
+android/keystore.properties
+android/*.jks
+# Build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+node_modules/
+.idea/
+*.iml

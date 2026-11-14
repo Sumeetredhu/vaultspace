@@ -1,0 +1,13 @@
+{
+  "name": "vaultspace-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VaultSpace backend: zero dependencies, Node.js built-ins only",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --no-warnings src/index.js",
+    "dev": "node --no-warnings --env-file-if-exists=.env src/index.js",
+    "test": "node --no-warnings --test test/*.test.js"
+  }
+}
