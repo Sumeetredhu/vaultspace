@@ -34,7 +34,8 @@ async function mailApi(cfg, to, subject, text) {
   if (!r.ok) throw new Error(`mail API replied ${r.status}`);
 }
 
-function smtp(cfg, to, subject, text) {
+// `connect` is replaceable only so the tests can talk to a fake mail server.
+export function smtp(cfg, to, subject, text, connect = tls.connect) {
   const message = [
     `From: VaultSpace <${cfg.from}>`,
     `To: <${to}>`,
@@ -56,26 +57,34 @@ function smtp(cfg, to, subject, text) {
   ];
 
   return new Promise((resolve, reject) => {
-    const sock = tls.connect({ host: cfg.host, port: cfg.port, servername: cfg.host, minVersion: 'TLSv1.2' });
+    const sock = connect({ host: cfg.host, port: cfg.port, servername: cfg.host, minVersion: 'TLSv1.2' });
     sock.setTimeout(20_000, () => sock.destroy(new Error('SMTP timeout')));
     let buf = '', step = 0;
     sock.on('data', (d) => {
-      buf += d;
-      if (!buf.endsWith('\r\n')) return;
-      const lines = buf.trimEnd().split('\r\n');
-      const last = lines[lines.length - 1];
-      if (!/^\d{3} /.test(last)) return;          // "250-..." means more lines are coming
-      buf = '';
-      const code = Number(last.slice(0, 3));
-      if (code !== steps[step][1]) {
+      // Once the message is accepted we only say QUIT; the server's goodbye ("221") is ignored.
+      // An exception inside a socket callback would crash the whole server, so nothing here may throw.
+      if (step >= steps.length) return;
+      try {
+        buf += d;
+        if (!buf.endsWith('\r\n')) return;
+        const lines = buf.trimEnd().split('\r\n');
+        const last = lines[lines.length - 1];
+        if (!/^\d{3} /.test(last)) return;          // "250-..." means more lines are coming
+        buf = '';
+        const code = Number(last.slice(0, 3));
+        if (code !== steps[step][1]) {
+          sock.destroy();
+          return reject(new Error(`SMTP replied ${code} at step ${step}`));
+        }
+        if (++step === steps.length) {
+          sock.end('QUIT\r\n');
+          return resolve();
+        }
+        sock.write(`${steps[step][0]}\r\n`);
+      } catch (e) {
         sock.destroy();
-        return reject(new Error(`SMTP replied ${code} at step ${step}`));
+        reject(e);
       }
-      if (++step === steps.length) {
-        sock.end('QUIT\r\n');
-        return resolve();
-      }
-      sock.write(`${steps[step][0]}\r\n`);
     });
     sock.on('error', reject);
   });
