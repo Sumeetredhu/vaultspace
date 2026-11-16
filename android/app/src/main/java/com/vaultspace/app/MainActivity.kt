@@ -314,8 +314,11 @@ class MainActivity : Activity() {
 
     fun friendly(e: Throwable): String = when (e) {
         is ApiError, is TamperedException -> e.message ?: "Something went wrong."
-        is javax.net.ssl.SSLException -> "Secure connection failed: the server's certificate is not the one VaultSpace trusts."
-        is java.io.IOException -> "Can't reach VaultSpace. Check your internet connection and try again."
+        // Only a certificate problem gets the certificate message; a connection dropped mid-TLS is a network error.
+        is java.io.IOException -> if (e is javax.net.ssl.SSLException && generateSequence<Throwable>(e) { it.cause }
+                .any { it is java.security.cert.CertificateException || it is java.security.cert.CertPathValidatorException })
+            "Secure connection failed: the server's certificate is not the one VaultSpace trusts."
+        else "Can't reach VaultSpace. The server is on the IIIT-Delhi campus network: connect to campus Wi-Fi (mobile data won't work) and try again."
         is IllegalArgumentException -> e.message ?: "That doesn't look right."
         is OutOfMemoryError -> "This file is too large to open on this phone."
         else -> "Something went wrong. Please try again."

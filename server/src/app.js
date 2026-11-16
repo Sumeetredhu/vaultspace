@@ -15,9 +15,15 @@ route('GET', '/health', 'public', () => ({ service: 'VaultSpace', ok: true }));
 
 export async function handle(req, res) {
   const ref = crypto.randomBytes(4).toString('hex');
+  const ip = clientIp(req), t0 = Date.now();
+  // Access log for diagnosing problems: method, path without the query string, status, time, IP.
+  // Never bodies, headers or tokens. Odd characters are replaced so a path can't forge log lines.
+  if (!process.env.QUIET) res.on('finish', () => {
+    const safe = (s, n) => String(s).slice(0, n).replace(/[^\x21-\x7e]/g, '?');
+    console.log(`${safe(req.method, 10)} ${safe(req.url.split('?')[0], 120)} ${res.statusCode} ${Date.now() - t0}ms ${safe(ip, 45)}`);
+  });
   try {
     const url = new URL(req.url, 'https://vaultspace.local');
-    const ip = clientIp(req);
     limit(`ip:${ip}`, 1500, 60);
     const { route: r, params } = findRoute(req.method, url.pathname);
     const ctx = { req, res, ip, params, query: url.searchParams };

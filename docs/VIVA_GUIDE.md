@@ -322,6 +322,10 @@ Optional passphrase key encrypts ─► that wrapped FileKey again
     - download off by default
     - passphrase optional
     - limits explained in plain words
+31. **What bugs did you find after deploying, and how did you fix them?**
+    - **Server crash after sending email.** Gmail answers our `QUIT` with a goodbye (`221`). Our SMTP code tried to match it to a step that didn't exist and threw inside a socket callback, which kills a Node process. Fix: ignore replies once the message is accepted, and catch everything in that callback. `mail.test.js` now checks this against a fake mail server.
+    - **"Can't reach VaultSpace" after typing the email code (a friend's real phone).** Android reuses HTTPS connections, but our server closes idle ones after 5 s, and reading an email takes longer. If the phone missed that close (flaky Wi-Fi), the POST went into a dead connection. Android can't resend a streamed body, so it failed. Fix: every request asks for a fresh connection (`Connection: close`). The server also logs one line per request (method, path without the query string, status, time, IP; never bodies or tokens) so reports can be checked.
+32. **Can it be used off campus?** Not as deployed: the VM has a private campus address (192.168.2.242). Campus VPN works without any change. A public tunnel would put a third party in front of the server, so we'd need the TA's permission. The app's error message tells users to join campus Wi-Fi.
 
 ---
 

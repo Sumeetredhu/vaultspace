@@ -42,6 +42,10 @@ object Api {
             conn.useCaches = false
             conn.instanceFollowRedirects = false
             conn.setRequestProperty("Accept", "application/json")
+            // A fresh connection for every request. Reusing a pooled one fails if the server already
+            // closed it (idle for more than 5 s, e.g. while the user reads an email code), and Android
+            // can't retry a streamed POST, so the user would see "can't reach" for no real reason.
+            conn.setRequestProperty("Connection", "close")
             conn.setRequestProperty("X-Device", device)
             Session.token?.let { conn.setRequestProperty("Authorization", "Bearer $it") }
             headers.forEach { (k, v) -> conn.setRequestProperty(k, v) }
