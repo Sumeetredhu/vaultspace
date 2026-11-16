@@ -23,6 +23,7 @@ server.headersTimeout = 15_000;
 server.requestTimeout = 120_000;
 server.keepAliveTimeout = 5_000;
 server.maxHeadersCount = 60;
+server.maxConnections = 1000;   // caps memory and file handles if someone opens connections in bulk
 
 server.listen(config.port, config.host, () => console.log(`VaultSpace server on ${scheme}://${config.host}:${config.port}`));
 setInterval(() => { try { cleanup(); } catch (e) { console.error('cleanup failed', e); } }, 60_000);

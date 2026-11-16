@@ -147,7 +147,10 @@ export function limit(key, max, windowSec) {
   const t = Date.now();
   let b = buckets.get(key);
   if (!b || t > b.reset) {
-    if (buckets.size > 200_000) buckets.clear();   // memory guard against key flooding
+    // Memory guard against key flooding. Expired counters go first; counters that are still
+    // running are never wiped (that would reset everyone's limits), new keys are refused instead.
+    if (buckets.size > 200_000) for (const [k, x] of buckets) if (t > x.reset) buckets.delete(k);
+    if (buckets.size > 200_000) fail(503, 'The server is busy. Please try again in a minute.');
     b = { n: 0, reset: t + windowSec * 1000 };
     buckets.set(key, b);
   }

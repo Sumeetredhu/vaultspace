@@ -262,12 +262,12 @@ class SharedWithMeScreen(app: MainActivity, private var openId: String? = null) 
                 setPadding(dp(14), dp(14), dp(14), dp(14))
                 pressable(shape(C.CARD, dpf(18f), C.LINE, dp(1)))
                 alpha = if (active) 1f else 0.6f
-                val title = s.meta?.name ?: if (s.hasPass && active) "Protected file" else "Unavailable file"
-                contentDescription = "$title, shared by ${s.fromName}, ${Fmt.perm(s.perm)}"
+                val label = title(s)
+                contentDescription = "$label, shared by ${s.sender}, ${Fmt.perm(s.perm)}"
                 iconBox(if (s.meta == null) R.drawable.ic_lock else R.drawable.ic_file)
                 column(2, w = 0, weight = 1f) {
-                    text(title, 15f, bold = true) { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
-                    caption("Shared by ${s.fromName} · ${Fmt.size(s.size)}")
+                    text(label, 15f, bold = true) { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+                    caption("Shared by ${s.sender} · ${Fmt.size(s.size)}")
                     caption(if (active) "${s.opensLeft} of ${s.maxOpens} opens left · ends in ${Fmt.left(s.expiresAt)}" else Fmt.status(s.status))
                 }
                 column(4, w = WRAP) {
@@ -281,7 +281,10 @@ class SharedWithMeScreen(app: MainActivity, private var openId: String? = null) 
         if (list.isNotEmpty()) caption("Each time you open a file, it uses one of the opens the owner allowed.")
     }
 
-    private fun open(s: Incoming) {
+    private fun title(s: Incoming) = s.meta?.name ?: if (s.hasPass && s.status == "active") "Protected file" else "Unavailable file"
+
+    /** fromLink: opened by a vaultspace:// link, which any website or app can fire, so always ask first. */
+    private fun open(s: Incoming, fromLink: Boolean = false) {
         if (s.status != "active") return app.snack(when (s.status) {
             "revoked" -> "${s.fromName} removed your access to this file."
             "expired" -> "Your access to this file has ended."
@@ -295,12 +298,16 @@ class SharedWithMeScreen(app: MainActivity, private var openId: String? = null) 
             }
         }
         val proceed = {
-            if (s.hasPass) app.ask("Passphrase needed", "${s.fromName} protected this file with a passphrase.", "Passphrase", Field.PASSWORD, "Open") { go(it.text.toString()) }
+            if (s.hasPass) app.ask("Passphrase needed", "${s.sender} protected this file with a passphrase.", "Passphrase", Field.PASSWORD, "Open") { go(it.text.toString()) }
             else go(null)
         }
-        if (s.opensLeft == 1) {
-            app.confirm("Last open", "This is your last allowed open. After this, ask ${s.fromName} to share it again if you need it.", "Open now") { proceed() }
-        } else proceed()
+        when {
+            s.opensLeft == 1 ->
+                app.confirm("Last open", "This is your last allowed open. After this, ask ${s.fromName} to share it again if you need it.", "Open now") { proceed() }
+            fromLink ->
+                app.confirm("Open this file?", "${title(s)} from ${s.sender}. Opening it uses 1 of your ${s.opensLeft} opens.", "Open") { proceed() }
+            else -> proceed()
+        }
     }
 
     private fun viewerFor(o: Opened): ViewerScreen {
@@ -321,7 +328,7 @@ class SharedWithMeScreen(app: MainActivity, private var openId: String? = null) 
             }
         }
         val mark = "${Session.email} · ${Fmt.time(System.currentTimeMillis() / 1000)}"
-        return ViewerScreen(app, o.meta, o.data, "${Fmt.perm(o.perm)} · from ${o.share.fromName} · ${Fmt.plural(o.opensLeft, "open")} left", mark, actions)
+        return ViewerScreen(app, o.meta, o.data, "${Fmt.perm(o.perm)} · from ${o.share.sender} · ${Fmt.plural(o.opensLeft, "open")} left", mark, actions)
     }
 
     override fun onShow() {
@@ -330,7 +337,7 @@ class SharedWithMeScreen(app: MainActivity, private var openId: String? = null) 
             rerender()
             val id = openId ?: return@task
             openId = null
-            list.firstOrNull { it.id == id }?.let { open(it) } ?: app.snack("That share isn't available to this account.")
+            list.firstOrNull { it.id == id }?.let { open(it, fromLink = true) } ?: app.snack("That share isn't available to this account.")
         }
     }
 }

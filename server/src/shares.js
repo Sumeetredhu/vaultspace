@@ -194,16 +194,23 @@ route('POST', '/shares/:id/download', 'user', (ctx) => {
 });
 
 // ---- "Can update" permission: recipient uploads a new version -----------------------------
+// Revoked, expired and passphrase-locked shares can't be updated. (Having used all opens is fine
+// for an upload already started, but a new one needs an open window, see below.)
 function editable(ctx) {
   const s = incoming(ctx);
   if (s.perm !== 'edit') fail(403, 'The owner did not allow updates.');
-  if (s.revoked_at || s.expires_at <= now()) fail(403, s.revoked_at ? REASONS.revoked : REASONS.expired);
+  const status = shareStatus(s);
+  if (status !== 'active' && status !== 'used_up') fail(403, REASONS[status], { status });
   return s;
 }
 
+// Starting an update needs a current viewing window (X-Open-Token), which only an open that
+// passed the passphrase check and counted against the limit can create. So "Can update" can't be
+// used to skip the passphrase, and it stops when the opens run out.
 route('POST', '/shares/:id/versions', 'user', async (ctx) => {
   const { size } = await readJson(ctx.req, { size: V.int(0, LIMITS.maxFile) });
   const s = editable(ctx);
+  openWindow(ctx);
   limit(`upload:${ctx.user.id}`, 60, 3600);
   return reserveVersion(s.file_id, s.owner_id, ctx.user.id, size);
 });

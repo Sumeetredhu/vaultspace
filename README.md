@@ -10,7 +10,7 @@ Secure storage and controlled sharing of sensitive documents. This is the Group 
 vaultspace/
   server/              Node.js server (no npm dependencies)
     src/               app code (see docs/VIVA_GUIDE.md §7 for a file-by-file tour)
-    test/api.test.js   16 security tests (access control, races, limits, enumeration...)
+    test/              22 tests (access control, races, limits, enumeration, mail client...)
     scripts/make-cert.sh   TLS key + self-signed certificate that the app pins
     deploy/            VM setup script, hardened systemd unit, config template
   android/             Android app (Kotlin, Android framework only)
@@ -51,3 +51,11 @@ After that:
 1. Put the email settings in `/etc/vaultspace.env`.
 2. Copy `/var/lib/vaultspace/tls/cert.pem` into the app.
 3. Build the release APK.
+4. Allow only key logins over SSH, once your key works:
+   ```bash
+   echo "PasswordAuthentication no" | sudo tee /etc/ssh/sshd_config.d/10-vaultspace.conf
+   sudo systemctl reload ssh
+   ```
+
+Later updates: copy the new `server` folder to `~/vaultspace/server` on the VM and run
+`sudo bash ~/vaultspace/server/deploy/update.sh` (the old version is kept in `/opt/vaultspace/server.old`).

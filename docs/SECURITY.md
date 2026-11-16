@@ -47,7 +47,7 @@ See the threat → control → code table in [VIVA_GUIDE.md §6](VIVA_GUIDE.md#6
 
 ## 4. Verification
 
-`server/test/api.test.js` runs 16 tests:
+`server/test/api.test.js` runs 20 tests and `server/test/mail.test.js` 2 more (`npm test`):
 - security headers and sandboxed chunk downloads
 - input validation (unknown fields, `__proto__`, wrong types, oversized bodies, path traversal)
 - no account enumeration (prelogin, login, signup)
@@ -61,9 +61,14 @@ See the threat → control → code table in [VIVA_GUIDE.md §6](VIVA_GUIDE.md#6
 - bad share rules rejected (0 opens, decimals, negative expiry, unknown permission, garbage keys, sharing with yourself)
 - passphrase: key hidden until checked; locks after 5 parallel guesses
 - "Can update" only for edit shares; abandoned uploads can't exhaust the quota
+- "Can update" can't skip the passphrase, and stops once the share is locked
+- "Can update" can't wipe the owner's original version
+- a two-factor code works once, even when two logins race with it
+- fingerprint logins appear in the access history
 - recovery needs both factors and logs out everywhere
 - TOTP matches the RFC 6238 test vector
 - hash chain detects tampering
+- the mail client survives the server's goodbye and reports a wrong App Password
 
 End-to-end checks on the emulator:
 - sign-up → upload → view
@@ -73,3 +78,35 @@ End-to-end checks on the emulator:
 ## 5. Known limitations
 
 See [VIVA_GUIDE.md §8](VIVA_GUIDE.md#8-what-vaultspace-cant-protect-say-this-confidently-its-a-strength). These limitations are also shown in the app, under Profile → "What VaultSpace can and can't protect".
+
+Design decisions a tester may report, and why we accept them:
+- **"View only" is enforced by the app, not the server.** To show a file, the phone must get its key and ciphertext, so a modified app could keep a copy. The server enforces everything it can: expiry, opens, passphrase, revoke.
+- **The history chain is unkeyed.** It detects edits to old entries, but someone with write access to the database (the server administrator) could rebuild the whole chain.
+- **Shares aren't signed by the sender.** A malicious server could hand out a fake share or a fake public key. The security code (compare in person) detects a swapped key.
+- **Recovery skips the authenticator code.** It already needs two factors: the email inbox and the 160-bit recovery key. Requiring the authenticator too would lock out anyone who lost their phone.
+- **`GET /users/key` tells a logged-in user whether an email has an account.** Sharing needs this. It is limited to 60 lookups per hour.
+- **Backups keep deleted data (still encrypted) for 7 days.** The keys that could decrypt it are only on users' phones.
+
+## 6. Security audit (16 Nov 2026)
+
+We reviewed every server and app file before peer testing. Findings and fixes:
+
+| # | Finding | Severity | Fix | Verified by |
+|---|---|---|---|---|
+| A1 | A "Can update" recipient could upload versions without ever entering the passphrase, and even after the share locked | Medium | Starting an update needs a current viewing window, which only a passphrase-checked, counted open creates; locked shares refuse updates | new API test; emulator |
+| A2 | A "Can update" recipient could upload 5 versions and so prune away all of the owner's own versions | Medium | Pruning always keeps the owner's newest version | new API test (fails on the old code) |
+| A3 | Two logins racing with the same authenticator code could both succeed | Low | The "code used" check is one conditional UPDATE | new API test (fails on the old code) |
+| A4 | A `vaultspace://share/…` link (which any website or app can fire) opened the share at once, using up one of the recipient's opens | Medium | Links always ask first, saying how many opens it uses | emulator |
+| A5 | "Shared With Me" showed only the sender's self-chosen display name, so anyone could appear as "Prof. Sharma" | Medium | The verified email is shown next to the name everywhere | emulator |
+| A6 | Dialogs (Delete, Revoke…) weren't protected against tapjacking; other apps' overlays weren't hidden | Low | Dialogs ignore obscured taps; overlays hidden on Android 12+ | code review |
+| A7 | Apps with accessibility access could read file names and contents (FLAG_SECURE doesn't stop them) | Low | Screens marked accessibility-data-sensitive on Android 14+; real accessibility tools such as TalkBack still work | code review; the UI test tool can still read every screen |
+| A8 | With the file picker open, the vault never auto-locked | Low | Locks after 10 minutes in the picker | code review |
+| A9 | One dialog (Category) and the video surface weren't explicitly screenshot-protected | Low | Both now secure | emulator |
+| A10 | The 2FA setup key went to any app claiming `otpauth:` links | Low | The user picks the app from a chooser | emulator |
+| A11 | A chunk arriving after its upload was committed or cancelled was still written | Low | Upload state is rechecked after the body arrives | code review |
+| A12 | Many parallel chunk uploads could use up server memory; connections were unlimited | Low | At most 4 chunks in flight per user; 1000 connections | code review |
+| A13 | Flooding the rate limiter with made-up keys reset everyone's counters | Low | Expired counters are pruned; live ones are never wiped | code review |
+| A14 | Fingerprint logins weren't recorded in the history | Low | Logged as "login (fingerprint)" | new API test |
+| A15 | The in-app "what's protected" page claimed the server enforces view-only | Info | Text corrected; limitation listed | review |
+| A16 | Server sandbox exposure score 4.9 | Hardening | System-call filter, namespaces, address families, /proc hiding; score 1.5; full test suite run inside the same sandbox on the VM | `systemd-analyze security`; tests on the VM |
+| A17 | SSH on the VM accepts passwords from the whole campus network | Medium | Use key login only (see README "Deploy") | config check |

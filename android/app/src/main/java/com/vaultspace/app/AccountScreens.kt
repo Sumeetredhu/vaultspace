@@ -230,9 +230,12 @@ class TwoFactorScreen(app: MainActivity) : Screen(app) {
                 }
                 row(10) {
                     button("Copy key", Btn.OUTLINE, w = 0, weight = 1f) { app.copySecret("Setup key", secret) }
+                    // The link carries the secret, so the user picks the app from a chooser: an unknown app
+                    // that claims "otpauth:" links can't silently receive it.
                     button("Open app", Btn.OUTLINE, w = 0, weight = 1f) {
-                        runCatching { app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(s.getString("uri")))) }
-                            .onFailure { app.snack("No authenticator app found. Copy the key instead.") }
+                        val view = Intent(Intent.ACTION_VIEW, Uri.parse(s.getString("uri")))
+                        if (view.resolveActivity(app.packageManager) == null) app.snack("No authenticator app found. Copy the key instead.")
+                        else app.startActivity(Intent.createChooser(view, "Add to your authenticator app"))
                     }
                 }
                 text("2. Enter the 6-digit code it shows:")
@@ -359,9 +362,9 @@ class LimitsScreen(app: MainActivity) : Screen(app) {
             listOf(
                 "Your files and their names are encrypted on your phone. Our server only stores scrambled data and can't read it, even if it's hacked.",
                 "Only the person you share with can open a shared file, with their own VaultSpace account. Forwarding the heads-up message gives nobody access.",
-                "Expiry, open limits, view-only and revoking are checked by the server every time, so changing the app can't get around them.",
+                "Expiry, open limits, passphrases and revoking are checked by the server every time, so changing the app can't get around them.",
                 "Screenshots and screen recording are blocked inside VaultSpace.",
-                "Every open, download and change is recorded in a history that can't be secretly edited.",
+                "Every open, download and change is recorded in a history where editing or deleting an old entry is detected.",
                 "Network traffic only goes to the VaultSpace server, whose certificate is built into the app.",
             ).forEach { text("• $it", 14f) }
         }
@@ -370,6 +373,7 @@ class LimitsScreen(app: MainActivity) : Screen(app) {
             listOf(
                 "Someone can still photograph the screen with another phone. Viewed files show the viewer's email as a watermark, so a leaked photo shows who took it.",
                 "Copies someone already saved (when you allowed downloads) can't be taken back by revoking.",
+                "\"View only\" is enforced by the VaultSpace app. Someone with a modified app could keep a copy of a file while it's open.",
                 "Someone holding your unlocked phone can see what you can see. VaultSpace locks itself after 5 minutes without activity.",
                 "If you forget both your password and your recovery key, nobody, including us, can recover your files.",
                 "Our server can see file sizes, when files are uploaded and opened, and who shares with whom, but not what's inside.",

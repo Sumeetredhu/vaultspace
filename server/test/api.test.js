@@ -233,7 +233,9 @@ test('"Can update" permission: only edit shares can upload a new version', async
   const view = await share(a, id, b);
   assert.equal((await api('POST', `/shares/${view.data.id}/versions`, { token: b.token, body: { size: 10 } })).status, 403);
   const edit = await share(a, id, c, { perm: 'edit' });
-  const v = await api('POST', `/shares/${edit.data.id}/versions`, { token: c.token, body: { size: 10 } });
+  assert.equal((await api('POST', `/shares/${edit.data.id}/versions`, { token: c.token, body: { size: 10 } })).status, 403, 'an update needs an open window');
+  const opened = await api('POST', `/shares/${edit.data.id}/open`, { token: c.token, body: {} });
+  const v = await api('POST', `/shares/${edit.data.id}/versions`, { token: c.token, body: { size: 10 }, headers: { 'x-open-token': opened.data.openToken } });
   assert.equal(v.data.version, 2);
   await api('PUT', `/shares/${edit.data.id}/v/2/0`, { token: c.token, raw: crypto.randomBytes(38) });
   assert.equal((await api('POST', `/shares/${edit.data.id}/v/2/commit`, { token: c.token, body: { meta: rand(64) } })).status, 200);
@@ -241,9 +243,66 @@ test('"Can update" permission: only edit shares can upload a new version', async
   assert.equal(f.data.version, 2);
   assert.equal(f.data.versions[0].uploadedBy, c.email);
   // abandoned uploads do not pile up against the owner's quota
-  for (let i = 0; i < 5; i++) await api('POST', `/shares/${edit.data.id}/versions`, { token: c.token, body: { size: 40 * 1024 * 1024 } });
+  for (let i = 0; i < 5; i++) {
+    await api('POST', `/shares/${edit.data.id}/versions`, { token: c.token, body: { size: 40 * 1024 * 1024 }, headers: { 'x-open-token': opened.data.openToken } });
+  }
   const me = await api('GET', '/me', { token: a.token });
   assert.ok(me.data.usage.used < 41 * 1024 * 1024, `quota abuse: ${me.data.usage.used}`);
+});
+
+test('"Can update" cannot skip the passphrase, and works only while the share is usable', async () => {
+  const a = await signup(), b = await signup();
+  const id = await upload(a);
+  const passAuth = rand(32);
+  const s = await share(a, id, b, { perm: 'edit', maxOpens: 5, pass: { salt: rand(16), auth: passAuth } });
+  const reserve = (headers = {}) => api('POST', `/shares/${s.data.id}/versions`, { token: b.token, body: { size: 10 }, headers });
+  assert.equal((await reserve()).status, 403, 'no update without the passphrase');
+  const opened = await api('POST', `/shares/${s.data.id}/open`, { token: b.token, body: { passAuth } });
+  assert.equal(opened.status, 200);
+  assert.equal((await reserve({ 'x-open-token': opened.data.openToken })).status, 200);
+  for (let i = 0; i < 5; i++) await api('POST', `/shares/${s.data.id}/open`, { token: b.token, body: { passAuth: rand(32) } });
+  const locked = await reserve({ 'x-open-token': opened.data.openToken });
+  assert.equal(locked.status, 403, 'a locked share cannot be updated');
+  assert.equal(locked.data.status, 'locked');
+});
+
+test('"Can update" cannot wipe the owner\'s original version', async () => {
+  const a = await signup(), b = await signup();
+  const id = await upload(a);
+  const s = await share(a, id, b, { perm: 'edit', maxOpens: 10 });
+  for (let i = 0; i < 6; i++) {
+    const o = await api('POST', `/shares/${s.data.id}/open`, { token: b.token, body: {} });
+    const hdr = { 'x-open-token': o.data.openToken };
+    const v = await api('POST', `/shares/${s.data.id}/versions`, { token: b.token, body: { size: 10 }, headers: hdr });
+    await api('PUT', `/shares/${s.data.id}/v/${v.data.version}/0`, { token: b.token, raw: crypto.randomBytes(38) });
+    assert.equal((await api('POST', `/shares/${s.data.id}/v/${v.data.version}/commit`, { token: b.token, body: { meta: rand(64) } })).status, 200);
+  }
+  const versions = (await api('GET', `/files/${id}`, { token: a.token })).data.versions.map((v) => v.version);
+  assert.ok(versions.includes(1), `owner's v1 must survive, got ${versions}`);
+  assert.equal(versions.length, 6, 'five newest plus the owner\'s own');
+});
+
+test('two-factor: a code works once, even when two logins race with it', async () => {
+  const a = await signup();
+  const setup = await api('POST', '/account/2fa/setup', { token: a.token, body: { authKey: a.authKey } });
+  const { unbase32 } = await import('../src/util.js');
+  const secret = unbase32(setup.data.secret);
+  const step = Math.floor(Date.now() / 30000);
+  assert.equal((await api('POST', '/account/2fa/enable', { token: a.token, body: { code: totpAt(secret, step) } })).status, 200);
+  const code = totpAt(secret, step + 1);
+  const tries = await Promise.all([1, 2].map((n) => api('POST', '/auth/login', {
+    body: { email: a.email, authKey: a.authKey, totp: code }, headers: { 'x-forwarded-for': `10.9.9.${n}` },
+  })));
+  assert.deepEqual(tries.map((r) => r.status).sort(), [200, 401]);
+});
+
+test('fingerprint logins appear in the access history', async () => {
+  const a = await signup();
+  const d = await api('POST', '/auth/devices', { token: a.token, body: { authKey: a.authKey }, headers: { 'x-device': 'Pixel test' } });
+  assert.equal(d.status, 200);
+  assert.equal((await api('POST', '/auth/device-login', { body: { deviceId: d.data.deviceId, deviceToken: d.data.deviceToken } })).status, 200);
+  const h = await api('GET', '/history', { token: a.token });
+  assert.ok(h.data.events.some((e) => e.type === 'login' && e.actor === 'Pixel test (fingerprint)'));
 });
 
 test('recovery needs both the email code and the recovery key, and logs out everywhere', async () => {

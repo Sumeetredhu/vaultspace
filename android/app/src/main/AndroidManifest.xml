@@ -3,6 +3,16 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Lets the app hide other apps' floating windows while it is in front (anti-tapjacking, Android 12+). -->
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
+
+    <!-- Needed to check that an authenticator app exists before offering "Open app" for 2FA setup. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="otpauth" />
+        </intent>
+    </queries>
 
     <!-- No backups of app data (keys, device tokens) to the cloud or to another phone.
          Plain HTTP is forbidden and only our own server certificate is trusted. -->

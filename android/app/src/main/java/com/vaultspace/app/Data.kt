@@ -185,6 +185,9 @@ class Incoming(j: JSONObject) {
     val hasPass = j.optBoolean("hasPass")
     val passSalt: String = j.optString("passSalt")
     val opensLeft get() = maxOf(0, maxOpens - opensUsed)
+    // Anyone can choose any display name, so the verified email is always shown next to it:
+    // a file "from Prof. Sharma" sent by a stranger still shows the stranger's address.
+    val sender get() = "$fromName ($fromEmail)"
     var meta: Meta? = null
 }
 
@@ -243,7 +246,8 @@ object Sharing {
 
     fun uploadVersion(o: Opened, p: Picked, progress: (Int) -> Unit) {
         val id = o.share.id
-        val version = Api.post("/shares/$id/versions", JSONObject().put("size", p.data.size)).getInt("version")
+        // The open token proves this upload follows a real open (passphrase checked, open counted).
+        val version = Api.post("/shares/$id/versions", JSONObject().put("size", p.data.size), mapOf("X-Open-Token" to o.token)).getInt("version")
         Vault.encryptChunks(p.data, o.key, o.share.fileId, version, { i, c -> Api.upload("/shares/$id/v/$version/$i", c) }, progress)
         val meta = Meta(o.meta.name, p.type, o.meta.category, p.data.size.toLong())
         Api.post("/shares/$id/v/$version/commit", JSONObject().put("meta", Meta.seal(o.key, o.share.fileId, meta)))

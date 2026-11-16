@@ -103,8 +103,14 @@ function checkLockout(email) {
   }
 }
 function noteFailure(email, user) {
-  if (failures.size > 100_000) failures.clear();
-  const f = failures.get(email) || { n: 0, until: 0 };
+  // Memory guard: forget only entries that are quiet for 15 minutes, so flooding the map with
+  // made-up emails can't wipe the lockout of an account that is really under attack.
+  if (failures.size > 100_000) {
+    for (const [k, x] of failures) if (Date.now() - x.at > 15 * 60_000) failures.delete(k);
+    if (failures.size > 100_000) failures.clear();
+  }
+  const f = failures.get(email) || { n: 0, until: 0, at: 0 };
+  f.at = Date.now();
   f.n++;
   if (f.n >= 5) f.until = Date.now() + Math.min(2 ** (f.n - 5) * 30_000, 15 * 60_000);
   failures.set(email, f);
@@ -215,6 +221,7 @@ route('POST', '/auth/device-login', 'public', async (ctx) => {
   if (!d || !sameText(d.token_hash, sha256(b.deviceToken))) fail(401, 'This phone is no longer trusted. Log in with your password.');
   run('UPDATE devices SET last_used = ? WHERE id = ?', now(), d.id);
   const u = get('SELECT * FROM users WHERE id = ?', d.user_id);
+  logEvent(u.id, 'login', { actor: `${d.label} (fingerprint)` });   // visible in the history like any login
   return loginPayload(u, createSession(u.id, d.label));
 });
 
@@ -349,14 +356,14 @@ route('POST', '/account/delete', 'user', async (ctx) => {
 // ---- two-factor authentication (TOTP, RFC 6238) -----------------------------------------
 // Each code works once: we remember the last time step used, so a code seen over someone's
 // shoulder cannot be replayed.
+// The "used" check is one conditional UPDATE on the current database row (not on the copy read
+// before the password check), so two requests racing with the same code can't both succeed.
 function checkTotp(u, sealed, code) {
   const secret = unbase32(unseal(sealed));
   const step = Math.floor(Date.now() / 30000);
   for (const s of [step - 1, step, step + 1]) {
-    if (s > u.totp_last && sameText(totpAt(secret, s), code)) {
-      run('UPDATE users SET totp_last = ? WHERE id = ?', s, u.id);
-      return true;
-    }
+    if (sameText(totpAt(secret, s), code)
+        && run('UPDATE users SET totp_last = ? WHERE id = ? AND totp_last < ?', s, u.id, s).changes === 1) return true;
   }
   return false;
 }

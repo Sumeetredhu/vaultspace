@@ -26,6 +26,21 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=true
+RestrictRealtime=true
+RemoveIPC=true
+# Only IPv4/IPv6 (clients, mail), Unix sockets and netlink (used by DNS lookups).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# Only the system calls a normal service needs; anything else fails with "permission denied".
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
 ReadWritePaths=/var/lib/vaultspace
 UMask=0077
 

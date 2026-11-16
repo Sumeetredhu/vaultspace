@@ -63,6 +63,8 @@ class MainActivity : Activity() {
         Prefs.init(this)
         // Blocks screenshots, screen recording and the preview in the recent-apps list.
         if (BuildConfig.SECURE_SCREEN) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Android 12+: other apps' floating windows are hidden while VaultSpace is in front (anti-tapjacking).
+        if (Build.VERSION.SDK_INT >= 31) window.setHideOverlayWindows(true)
         setContentView(buildShell())
         styleSystemBars()
         handleLink(intent)
@@ -101,16 +103,22 @@ class MainActivity : Activity() {
     private var lastTouch = SystemClock.elapsedRealtime()
     private var hiddenAt = 0L
     private var externalOpen = false   // our own file picker / save dialog is in front
+    private var externalSince = 0L
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         lastTouch = SystemClock.elapsedRealtime()
         return super.dispatchTouchEvent(ev)
     }
 
+    // The picker gets extra time (choosing a file can take a while), but not forever: someone could
+    // open it and walk away, leaving the keys in memory.
     private val idleCheck: Runnable = object : Runnable {
         override fun run() {
-            if (Session.isOpen && !externalOpen && SystemClock.elapsedRealtime() - lastTouch > 5 * 60_000) {
+            val t = SystemClock.elapsedRealtime()
+            if (Session.isOpen && !externalOpen && t - lastTouch > 5 * 60_000) {
                 lock("VaultSpace locked after 5 minutes without activity.")
+            } else if (Session.isOpen && externalOpen && t - externalSince > 10 * 60_000) {
+                lock("VaultSpace locked because the file picker was left open.")
             }
             handler.postDelayed(this, 15_000)
         }
@@ -136,6 +144,9 @@ class MainActivity : Activity() {
         val root = FrameLayout(this)
         root.setBackgroundColor(C.BG)
         root.filterTouchesWhenObscured = true   // ignore taps while another app draws over us (tapjacking)
+        // Android 14+: only real accessibility tools (e.g. TalkBack) may read the screen. Other apps that
+        // ask for accessibility access can't scrape file names or contents (FLAG_SECURE doesn't stop them).
+        if (Build.VERSION.SDK_INT >= 34) root.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
         val main = root.add(LinearLayout(this), MATCH, MATCH) { orientation = LinearLayout.VERTICAL }
         content = main.add(FrameLayout(this), MATCH, 0, 1f)
         nav = main.add(LinearLayout(this), MATCH, dp(72)) {
@@ -334,10 +345,22 @@ class MainActivity : Activity() {
 
     private val hideSnack = Runnable { snackView.visibility = View.GONE }
 
-    // ---- dialogs (also FLAG_SECURE: dialogs are separate windows and would otherwise be capturable) ----
+    // ---- dialogs ----------------------------------------------------------------------------
+    // A dialog is a separate window, so it needs its own protection: FLAG_SECURE (no screenshots),
+    // hidden overlays and ignored taps while obscured (no tapjacking on "Delete" or "Revoke"),
+    // and accessibility-data-sensitive like the main screen.
     private fun secure(b: AlertDialog.Builder): AlertDialog = b.create().apply {
         if (BuildConfig.SECURE_SCREEN) window?.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        if (Build.VERSION.SDK_INT >= 31) window?.setHideOverlayWindows(true)
         show()
+        window?.decorView?.let { v ->
+            v.filterTouchesWhenObscured = true
+            if (Build.VERSION.SDK_INT >= 34) v.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
+        }
+    }
+
+    fun choose(title: String, items: List<String>, onPick: (Int) -> Unit) {
+        secure(AlertDialog.Builder(this).setTitle(title).setItems(items.toTypedArray()) { _, i -> onPick(i) })
     }
 
     fun confirm(title: String, message: String, action: String, onYes: () -> Unit) {
@@ -375,12 +398,14 @@ class MainActivity : Activity() {
     fun pickFile(cb: (Uri) -> Unit) {
         onPicked = cb
         externalOpen = true
+        externalSince = SystemClock.elapsedRealtime()
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), 1)
     }
 
     fun saveFile(name: String, cb: (Uri) -> Unit) {
         onPicked = cb
         externalOpen = true
+        externalSince = SystemClock.elapsedRealtime()
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, name), 2)
     }

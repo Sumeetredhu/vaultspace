@@ -37,14 +37,31 @@ function openUpload(fileId, version, uploaderId) {
   return v;
 }
 
+// Each person may send only a few chunks at once. Every chunk in flight is held in memory
+// (up to 1 MiB), so this stops one account from exhausting the server's memory.
+const inFlight = new Map();
+const MAX_IN_FLIGHT = 4;
+
 export async function receiveChunk(ctx, fileId, version, uploaderId) {
   const v = openUpload(fileId, version, uploaderId);
   const i = ctx.params.idx;
   if (i >= v.chunks) fail(400, 'Invalid chunk number.');
-  const body = await readBody(ctx.req, chunkLength(v, i));
-  if (body.length !== chunkLength(v, i)) fail(400, 'Chunk has the wrong size.');
-  store.writeChunk(fileId, version, i, body);
-  return { ok: true };
+  const busy = inFlight.get(uploaderId) || 0;
+  if (busy >= MAX_IN_FLIGHT) fail(429, 'Too many uploads at once. Please wait a moment and try again.');
+  inFlight.set(uploaderId, busy + 1);
+  try {
+    const body = await readBody(ctx.req, chunkLength(v, i));
+    if (body.length !== chunkLength(v, i)) fail(400, 'Chunk has the wrong size.');
+    // Check again: the upload may have been committed or cancelled while this body was arriving,
+    // and a late chunk must never change a finished version or land in a reused version number.
+    openUpload(fileId, version, uploaderId);
+    store.writeChunk(fileId, version, i, body);
+    return { ok: true };
+  } finally {
+    const left = inFlight.get(uploaderId) - 1;
+    if (left > 0) inFlight.set(uploaderId, left);
+    else inFlight.delete(uploaderId);
+  }
 }
 
 // Marks a version complete once every chunk is present, makes it current, and keeps only the newest versions.
@@ -55,7 +72,12 @@ export function finishVersion(fileId, version, uploaderId, meta, keyByVault) {
     run("UPDATE versions SET status = 'ready', meta = ? WHERE file_id = ? AND version = ?", meta, fileId, version);
     run('UPDATE files SET current_version = ?, updated_at = ? WHERE id = ?', version, now(), fileId);
     if (keyByVault) run('UPDATE files SET key_by_vault = ? WHERE id = ? AND key_by_vault IS NULL', keyByVault, fileId);
-    const old = all("SELECT version FROM versions WHERE file_id = ? AND status = 'ready' ORDER BY version DESC LIMIT -1 OFFSET ?", fileId, LIMITS.maxVersions);
+    // Old versions are pruned, but the owner's newest upload is always kept, so someone with
+    // "Can update" can't wipe the owner's original by uploading several versions in a row.
+    const ownerLatest = get(`SELECT MAX(v.version) AS n FROM versions v JOIN files f ON f.id = v.file_id
+                             WHERE v.file_id = ? AND v.status = 'ready' AND v.uploaded_by = f.owner_id`, fileId).n;
+    const old = all("SELECT version FROM versions WHERE file_id = ? AND status = 'ready' ORDER BY version DESC LIMIT -1 OFFSET ?", fileId, LIMITS.maxVersions)
+      .filter((o) => o.version !== ownerLatest);
     for (const o of old) run('DELETE FROM versions WHERE file_id = ? AND version = ?', fileId, o.version);
     return old;
   });

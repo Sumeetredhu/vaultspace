@@ -1,6 +1,5 @@
 package com.vaultspace.app
 
-import android.app.AlertDialog
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -313,10 +312,9 @@ class FileDetailsScreen(app: MainActivity, private val fileId: String) : Screen(
         row(10) {
             button("Rename", Btn.OUTLINE, w = 0, weight = 1f) { rename(app, f) { onShow() } }
             button("Category", Btn.OUTLINE, w = 0, weight = 1f) {
-                val d2 = AlertDialog.Builder(app).setTitle("Category").setItems(Vault.CATEGORIES.toTypedArray()) { _, i ->
+                app.choose("Category", Vault.CATEGORIES) { i ->
                     task("Saving…", work = { Vault.updateMeta(f, f.meta.copy(category = Vault.CATEGORIES[i])); Vault.refresh() }) { rerender() }
                 }
-                d2.show()
             }
         }
         button("Delete file", Btn.DANGER) { deleteFile(app, f) { app.back() } }
@@ -490,7 +488,10 @@ class ViewerScreen(
     }
 
     private fun showVideo(frame: FrameLayout) {
-        val surface = frame.add(SurfaceView(app), MATCH, MATCH) { contentDescription = "Video. Tap to pause or play." }
+        val surface = frame.add(SurfaceView(app), MATCH, MATCH) {
+            contentDescription = "Video. Tap to pause or play."
+            if (BuildConfig.SECURE_SCREEN) setSecure(true)   // video frames live in their own surface: block capture there too
+        }
         surface.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(h: SurfaceHolder) {
                 player = MediaPlayer().apply {
