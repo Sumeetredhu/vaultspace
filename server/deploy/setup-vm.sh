@@ -4,6 +4,7 @@
 set -euo pipefail
 HOST_NAME="${1:?usage: setup-vm.sh <public-ip-or-hostname>}"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a   # never stop for interactive prompts
 
 echo "== 1. System updates and automatic security updates"
 apt-get update -y && apt-get upgrade -y
@@ -34,6 +35,7 @@ if [ ! -f /var/lib/vaultspace/tls/key.pem ]; then
   (cd /opt/vaultspace/server && VS_TLS_OUT=/var/lib/vaultspace/tls bash scripts/make-cert.sh "$HOST_NAME")
   chown -R vaultspace:vaultspace /var/lib/vaultspace/tls
 fi
+install -m 644 /var/lib/vaultspace/tls/cert.pem /opt/vaultspace/cert.pem   # public part only, for building the app
 
 echo "== 5. Configuration"
 if [ ! -f /etc/vaultspace.env ]; then
@@ -49,10 +51,14 @@ ufw allow OpenSSH
 ufw allow 443/tcp
 ufw --force enable
 
-echo "== 7. Service"
+echo "== 7. Nightly backups (03:30, last 7 days kept)"
+mkdir -p /var/lib/vaultspace/backups && chown vaultspace:vaultspace /var/lib/vaultspace/backups
+cp /opt/vaultspace/server/deploy/vaultspace-backup.service /opt/vaultspace/server/deploy/vaultspace-backup.timer /etc/systemd/system/
+
+echo "== 8. Service"
 cp /opt/vaultspace/server/deploy/vaultspace.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now vaultspace
+systemctl enable --now vaultspace vaultspace-backup.timer
 sleep 2
 systemctl --no-pager status vaultspace | head -5
-echo "Done. Copy /var/lib/vaultspace/tls/cert.pem into the app (res/raw/server_cert.pem) and build the release APK."
+echo "Done. The app certificate is at /opt/vaultspace/cert.pem."

@@ -1,0 +1,15 @@
+[Unit]
+Description=VaultSpace nightly backup
+
+[Service]
+Type=oneshot
+User=vaultspace
+Group=vaultspace
+Environment=VS_DATA=/var/lib/vaultspace
+ExecStart=/bin/bash /opt/vaultspace/server/scripts/backup.sh
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/vaultspace
+UMask=0077
