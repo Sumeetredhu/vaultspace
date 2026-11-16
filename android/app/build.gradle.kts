@@ -37,6 +37,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "SERVER_URL", "\"${providers.gradleProperty("vsDevServer").get()}\"")
+        }
         release {
             isMinifyEnabled = true      // R8 shrinks and obfuscates the release APK
             isShrinkResources = true

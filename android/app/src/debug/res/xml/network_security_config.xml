@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: also trust the developer's local server certificate, so the app can be
+     tested against a laptop server. Release builds use src/main's config: the VM certificate only. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="@raw/server_cert" />
+            <certificates src="@raw/dev_cert" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

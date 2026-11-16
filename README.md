@@ -31,14 +31,16 @@ npm test                           # runs the security test suite
 
 ## Build the app
 Needs the Android SDK (API 35) and JDK 17+.
-1. Copy `server/data/tls/cert.pem` to `android/app/src/main/res/raw/server_cert.pem`.
-2. Set `vsServer` in `android/gradle.properties`. `https://10.0.2.2:8443` reaches the laptop from the emulator.
-3. Build:
-   ```bash
-   cd android
-   ./gradlew assembleDebug            # app/build/outputs/apk/debug/app-debug.apk
-   ./gradlew assembleRelease          # signed if keystore.properties exists
-   ```
+- **Release** builds talk only to `vsServer` (the course VM, `https://192.168.2.242`) and trust only
+  `app/src/main/res/raw/server_cert.pem`, the VM's certificate.
+- **Debug** builds talk to `vsDevServer` (default `https://10.0.2.2:8443`, which is the laptop as seen
+  from the emulator). They also trust `app/src/debug/res/raw/dev_cert.pem`, the local server's certificate.
+
+```bash
+cd android
+./gradlew assembleRelease          # app/build/outputs/apk/release/app-release.apk (signed if keystore.properties exists)
+./gradlew assembleDebug            # local testing; add -PvsSecure=false to allow screenshots
+```
 
 ## Deploy to a VM
 Copy the `server` folder to the VM, then run:
