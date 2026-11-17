@@ -4,8 +4,10 @@ VaultSpace keeps sensitive documents (Aadhaar, marksheets, bank statements…) e
 
 ## 1. Install
 - **Android phone** (Android 9 or newer):
-  1. Download `VaultSpace.apk` from: **&lt;APK link&gt;**
+  1. Download `VaultSpace(Group15).apk` from: **[https://drive.google.com/drive/folders/1iif3l1HUlRNmCUPDzvftjtkUEu22QROo](https://drive.google.com/drive/folders/1iif3l1HUlRNmCUPDzvftjtkUEu22QROo)**
   2. Open it and allow "Install unknown apps" for your browser or file manager when asked.
+  3. Optional: check you have the genuine file. Its SHA-256 is
+     `e6e0cd3431b64d4afbe94aed721f79f78582d4f9d7ffd6d1f233f5b6d296ca53`.
 - **No Android phone?** Use the Android Studio emulator (any Android 9+ image), or the course's cloud simulator, and drag the APK onto it.
 - **Network:** the app talks only to the VaultSpace server on the IIIT-Delhi network (`192.168.2.242`). Your phone must be on the campus network (e.g. campus Wi-Fi); there is nothing else to set up.
 
