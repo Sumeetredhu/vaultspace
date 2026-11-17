@@ -110,3 +110,9 @@ We reviewed every server and app file before peer testing. Findings and fixes:
 | A15 | The in-app "what's protected" page claimed the server enforces view-only | Info | Text corrected; limitation listed | review |
 | A16 | Server sandbox exposure score 4.9 | Hardening | System-call filter, namespaces, address families, /proc hiding; score 1.5; full test suite run inside the same sandbox on the VM | `systemd-analyze security`; tests on the VM |
 | A17 | SSH on the VM accepts passwords from the whole campus network | Medium | Use key login only (see README "Deploy") | config check |
+
+### Second review (17 Nov 2026)
+
+| # | Finding | Severity | Fix | Verified by |
+|---|---|---|---|---|
+| A18 | A "Can update" recipient could upload a version whose name and type can't be decrypted. The owner's app then failed to show *any* file, and the file couldn't be restored from the app | Medium | Each file is decrypted on its own. A broken one is listed as "Unreadable file" and its page offers Restore and Rename; other files are unaffected | attack replayed against a local server; owner's app on the emulator lists every file and restores the old version |

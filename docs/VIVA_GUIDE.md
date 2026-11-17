@@ -331,6 +331,8 @@ Optional passphrase key encrypts ─► that wrapped FileKey again
     - **Display names can lie.** Anyone can call themselves "Prof. Sharma", so the app now always shows the verified email next to the name.
 
     Each server fix has a test that fails on the old code and passes on the new one.
+
+    A second review (17 Nov) found one more: a "Can update" recipient could upload a version whose encrypted name and type can't be decrypted. The owner's app decrypted every file's details in one go and stopped at the first failure, so the whole vault looked empty. Now each file loads on its own, a broken one shows as "Unreadable file", and the owner can restore an earlier version (A18). The lesson: anything another user can write is untrusted input, even when it's encrypted with a key we share with them.
 33. **Can it be used off campus?** Not as deployed: the VM has a private campus address (192.168.2.242). Campus VPN works without any change. A public tunnel would put a third party in front of the server, so we'd need the TA's permission. The app's error message tells users to join campus Wi-Fi.
 
 ---

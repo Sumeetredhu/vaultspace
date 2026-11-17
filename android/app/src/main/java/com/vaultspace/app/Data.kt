@@ -80,9 +80,10 @@ data class Meta(val name: String, val type: String, val category: String, val si
     }
 }
 
+/** `damaged`: the current version's details (name, type, category) could not be decrypted. */
 class VaultFile(
     val id: String, val version: Int, val size: Long, val key: ByteArray, val meta: Meta,
-    val updatedAt: Long, val activeShares: Int,
+    val updatedAt: Long, val activeShares: Int, val damaged: Boolean = false,
 )
 
 class Picked(val name: String, val type: String, val data: ByteArray)
@@ -92,6 +93,8 @@ object Vault {
     const val CHUNK = 1024 * 1024
     const val MAX_FILE = 50L * 1024 * 1024
     val CATEGORIES = listOf("Government IDs", "College Documents", "Bank & Finance", "Medical", "Photos", "Videos", "Work", "Other")
+
+    const val UNREADABLE = "Unreadable file"
 
     @Volatile var files: List<VaultFile> = emptyList()
     var used = 0L
@@ -110,8 +113,12 @@ object Vault {
         files = r.getJSONArray("files").objects().map { f ->
             val id = f.getString("id")
             val key = Crypto.open(vault, Crypto.unb64(f.getString("keyByVault")), "vs-fkey|$id")
-            VaultFile(id, f.getInt("version"), f.getLong("size"), key, Meta.open(key, id, f.getString("meta")),
-                f.getLong("updatedAt"), f.getInt("activeShares"))
+            // The current version's details may come from someone with "Can update" access, so one
+            // bad file must never hide the whole vault: it is listed as unreadable, and the owner
+            // can restore an earlier version or rename it.
+            val meta = runCatching { Meta.open(key, id, f.getString("meta")) }.getOrNull()
+            VaultFile(id, f.getInt("version"), f.getLong("size"), key, meta ?: Meta(UNREADABLE, "", "Other", f.getLong("size")),
+                f.getLong("updatedAt"), f.getInt("activeShares"), damaged = meta == null)
         }
         used = r.getLong("used")
         quota = r.getLong("quota")

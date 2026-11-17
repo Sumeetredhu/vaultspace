@@ -43,7 +43,8 @@ fun LinearLayout.fileCard(app: MainActivity, f: VaultFile, onChanged: () -> Unit
     iconBox(R.drawable.ic_file)
     column(2, w = 0, weight = 1f) {
         text(f.meta.name, 15f, bold = true) { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
-        caption("Updated ${Fmt.ago(f.updatedAt)} · ${Fmt.size(f.size)}")
+        if (f.damaged) caption("Its details can't be read · tap to restore", C.DANGER)
+        else caption("Updated ${Fmt.ago(f.updatedAt)} · ${Fmt.size(f.size)}")
     }
     column(6, w = WRAP) {
         gravity = Gravity.END
@@ -248,6 +249,9 @@ class FileDetailsScreen(app: MainActivity, private val fileId: String) : Screen(
             return
         }
         header(f.meta.name, f.meta.category, onBack = { app.back() })
+        if (f.damaged) notice("This version's details can't be read",
+            "Version ${f.version} was uploaded with a name and type that can't be decrypted, so they may have been changed on purpose. " +
+                "Restore an earlier version below, or rename the file. Your other files are not affected.", dark = false)
         card(10, 16) {
             row(12) {
                 iconBox(R.drawable.ic_lock, C.INK, Color.WHITE)
