@@ -130,7 +130,7 @@ Optional passphrase key encrypts ─► that wrapped FileKey again
 
 ### 5.4 Upload (`UploadScreen`, `Vault.upload`, `files.js`)
 1. The user picks a file with the system picker (Storage Access Framework), so the app needs **no storage permission**. The file is refused while it is being read if it passes 50 MB; the reported size is not trusted.
-2. `POST /files {size}` → the server checks the quota (250 MB per user, 200 files) and returns a random file id.
+2. `POST /files {size}` → the server checks the quota (500 MB per user, 200 files) and returns a random file id.
 3. The phone makes a random FileKey and encrypts 1 MiB chunks (AES-GCM with the chunk label), then `PUT`s each chunk. The server accepts a chunk **only if its length is exactly right** for its position, so nobody can store extra data or overshoot their quota.
 4. `commit` sends the encrypted metadata and the FileKey wrapped by the VaultKey. The server checks that every chunk is present before marking the version ready.
 

@@ -40,7 +40,7 @@ export const config = {
 export const LIMITS = {
   chunk: 1024 * 1024,              // plaintext bytes per encrypted chunk
   maxFile: 50 * 1024 * 1024,       // per file
-  quota: 250 * 1024 * 1024,        // per user, all versions included
+  quota: 500 * 1024 * 1024,        // per user, all versions included
   maxFiles: 200,
   maxVersions: 5,
   maxSharesPerFile: 50,
