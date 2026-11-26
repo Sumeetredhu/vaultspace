@@ -143,18 +143,33 @@ export function check(obj, schema) {
 // ---- rate limiting -----------------------------------------------------------
 // Fixed-window counters kept in memory: limit("login:1.2.3.4", 30, 300) allows 30 calls per 5 minutes.
 const buckets = new Map();
-export function limit(key, max, windowSec) {
+
+// Counts one call against `key` and returns its counter, or null when the table is full.
+function hit(key, windowSec) {
   const t = Date.now();
   let b = buckets.get(key);
   if (!b || t > b.reset) {
     // Memory guard against key flooding. Expired counters go first; counters that are still
     // running are never wiped (that would reset everyone's limits), new keys are refused instead.
     if (buckets.size > 200_000) for (const [k, x] of buckets) if (t > x.reset) buckets.delete(k);
-    if (buckets.size > 200_000) fail(503, 'The server is busy. Please try again in a minute.');
+    if (buckets.size > 200_000) return null;
     b = { n: 0, reset: t + windowSec * 1000 };
     buckets.set(key, b);
   }
-  if (++b.n > max) fail(429, 'Too many requests. Please wait a moment and try again.', { retryAfter: Math.ceil((b.reset - t) / 1000) });
+  b.n++;
+  return b;
+}
+
+export function limit(key, max, windowSec) {
+  const b = hit(key, windowSec);
+  if (!b) fail(503, 'The server is busy. Please try again in a minute.');
+  if (b.n > max) fail(429, 'Too many requests. Please wait a moment and try again.', { retryAfter: Math.ceil((b.reset - Date.now()) / 1000) });
+}
+
+// Same counters, but answers yes/no instead of failing the request: for optional work such as alert emails.
+export function allow(key, max, windowSec) {
+  const b = hit(key, windowSec);
+  return !!b && b.n <= max;
 }
 setInterval(() => {
   const t = Date.now();

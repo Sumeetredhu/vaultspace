@@ -335,3 +335,15 @@ test('activity log is hash-chained and detects tampering', async () => {
   const n = await api('GET', '/notifications', { token: b.token });
   assert.ok(n.data.items.some((x) => x.type === 'received'));
 });
+
+test('login alert emails: one per account per hour, but every login still shows in the app', async () => {
+  const u = await signup();
+  const headers = { 'x-forwarded-for': '10.250.1.1' };
+  for (let i = 0; i < 5; i++) {
+    const r = await api('POST', '/auth/login', { body: { email: u.email, authKey: u.authKey }, headers });
+    assert.equal(r.status, 200);
+  }
+  assert.equal(outbox.filter((m) => m.to === u.email && m.subject === 'New login to VaultSpace').length, 1);
+  const n = await api('GET', '/notifications', { token: u.token });
+  assert.equal(n.data.items.filter((x) => x.type === 'login').length, 5);
+});

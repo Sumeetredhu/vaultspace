@@ -3,7 +3,7 @@
 // (PBKDF2 + HKDF) and the server stores only a scrypt hash of that key.
 import crypto from 'node:crypto';
 import { LIMITS } from './config.js';
-import { route, readJson, V, fail, limit } from './http.js';
+import { route, readJson, V, fail, limit, allow } from './http.js';
 import { get, all, run, tx, logEvent } from './db.js';
 import { sendMail } from './mail.js';
 import * as store from './storage.js';
@@ -90,6 +90,19 @@ function consumeCode(purpose, email, code) {
     fail(400, 'That code is incorrect.');
   }
   run('DELETE FROM codes WHERE purpose = ? AND email = ?', purpose, email);
+}
+
+// ---- security alert emails ---------------------------------------------------------
+// Every event is also in the app's notifications and access history, so a skipped email loses nothing.
+// Unlimited alerts, though, let one user use up the mail provider's daily quota by logging in again and
+// again, which stopped sign-up and recovery codes for everyone (peer-testing report 1517, 19 Nov).
+// So: at most one alert of each kind per account per hour, and 200 alerts a day in total, which leaves
+// most of the quota for sign-up and recovery codes.
+export function alertMail(user, kind, subject, text) {
+  if (!allow(`alert:${kind}:${user.id}`, 1, 3600)) return false;
+  if (!allow('alert:day', 200, 86400)) return false;
+  sendMail(user.email, subject, text);
+  return true;
 }
 
 // ---- brute-force protection for logins -------------------------------------------
@@ -188,8 +201,8 @@ route('POST', '/auth/login', 'public', async (ctx) => {
   }
   failures.delete(b.email);
   const label = deviceLabel(ctx);
-  logEvent(u.id, 'login', { actor: label, notify: true });
-  sendMail(u.email, 'New login to VaultSpace',
+  logEvent(u.id, 'login', { actor: label, notify: true });   // every login appears in the app
+  alertMail(u, 'login', 'New login to VaultSpace',
     `Your VaultSpace account was just used to log in on: ${label}.\n\n`
     + 'If this was not you, open VaultSpace > Profile > Devices & sessions, log out everywhere and change your password.');
   return loginPayload(u, createSession(u.id, label));
@@ -281,7 +294,7 @@ route('POST', '/auth/recover/finish', 'public', async (ctx) => {
     run('DELETE FROM devices WHERE user_id = ?', u.id);
   });
   logEvent(u.id, 'recovered', { actor: deviceLabel(ctx), notify: true });
-  sendMail(u.email, 'Your VaultSpace password was reset',
+  alertMail(u, 'reset', 'Your VaultSpace password was reset',
     'Your password was reset with your recovery key, and every device was logged out. You also have a new recovery key.\n\n'
     + 'If this was not you, contact the VaultSpace team immediately.');
   return loginPayload(get('SELECT * FROM users WHERE id = ?', u.id), createSession(u.id, deviceLabel(ctx)));
@@ -329,7 +342,7 @@ route('POST', '/account/password', 'user', async (ctx) => {
     run('DELETE FROM devices WHERE user_id = ?', ctx.user.id);
   });
   logEvent(ctx.user.id, 'password_changed', { notify: true });
-  sendMail(ctx.user.email, 'Your VaultSpace password was changed',
+  alertMail(ctx.user, 'password', 'Your VaultSpace password was changed',
     'Your password was changed and your other devices were logged out. If this was not you, reset it with your recovery key now.');
   return { ok: true };
 });
@@ -394,6 +407,6 @@ route('POST', '/account/2fa/disable', 'user', async (ctx) => {
   if (!checkTotp(ctx.user, ctx.user.totp_secret, b.code)) fail(400, 'That code is incorrect.');
   run('UPDATE users SET totp_secret = NULL, totp_last = 0 WHERE id = ?', ctx.user.id);
   logEvent(ctx.user.id, '2fa_off', { notify: true });
-  sendMail(ctx.user.email, 'Two-factor authentication was turned off', 'Two-factor authentication was turned off for your VaultSpace account. If this was not you, change your password now.');
+  alertMail(ctx.user, '2fa_off', 'Two-factor authentication was turned off','Two-factor authentication was turned off for your VaultSpace account. If this was not you, change your password now.');
   return { ok: true };
 });
