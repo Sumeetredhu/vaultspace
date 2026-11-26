@@ -47,7 +47,7 @@ See the threat → control → code table in [VIVA_GUIDE.md §6](VIVA_GUIDE.md#6
 
 ## 4. Verification
 
-`server/test/api.test.js` runs 20 tests and `server/test/mail.test.js` 2 more (`npm test`):
+`server/test/api.test.js` runs 21 tests and `server/test/mail.test.js` 2 more (`npm test`):
 - security headers and sandboxed chunk downloads
 - input validation (unknown fields, `__proto__`, wrong types, oversized bodies, path traversal)
 - no account enumeration (prelogin, login, signup)
@@ -68,6 +68,7 @@ See the threat → control → code table in [VIVA_GUIDE.md §6](VIVA_GUIDE.md#6
 - recovery needs both factors and logs out everywhere
 - TOTP matches the RFC 6238 test vector
 - hash chain detects tampering
+- login alert emails are rationed, so repeated logins can't use up the mail quota
 - the mail client survives the server's goodbye and reports a wrong App Password
 
 End-to-end checks on the emulator:
@@ -116,3 +117,25 @@ We reviewed every server and app file before peer testing. Findings and fixes:
 | # | Finding | Severity | Fix | Verified by |
 |---|---|---|---|---|
 | A18 | A "Can update" recipient could upload a version whose name and type can't be decrypted. The owner's app then failed to show *any* file, and the file couldn't be restored from the app | Medium | Each file is decrypted on its own. A broken one is listed as "Unreadable file" and its page offers Restore and Rename; other files are unaffected | attack replayed against a local server; owner's app on the emulator lists every file and restores the old version |
+
+### Peer testing (18–25 Nov 2026)
+
+75 rows of the course's bug sheet were filed under Group 15:
+- 8 describe other groups' apps, and 2 are word-for-word duplicates.
+- 24 were disproved by retesting, 20 are documented limitations or deliberate design, and 12 are suggestions.
+- 9 were accepted. They are 8 distinct issues, and none exposes a file, a key or an account.
+
+The accepted issue with real impact was fixed on the server:
+
+| # | Finding | Severity | Fix | Verified by |
+|---|---|---|---|---|
+| A19 | Every login sent an alert email. One tester logged in about 620 times in two hours (19 Nov), the mail provider's daily quota ran out, and sign-up and recovery codes stopped arriving for about 18 hours (report 1517) | Medium (availability only) | Alert emails (new login, password changed, password reset, 2FA off) go out at most once per kind per account per hour, and 200 a day in total; every event still appears in the app | new API test (fails on the old code with 5 emails, passes with 1); VM logs |
+
+Accepted, low severity, not yet changed in the app:
+- 1468: password-protected PDFs are reported as "may be damaged".
+- 1479: the app accepts a lower PBKDF2 iteration count from the server; only an attacker who controls the server could send one.
+- 1482: the owner's viewer caption says "only you can open it" even when the file is shared.
+- 1483: placeholder text contrast is 2.81:1; field labels meet AA.
+- 1485: "yesterday" means "24–48 hours ago"; the history shows exact times.
+- 1513 and 1528: files without a preview can't be read through a View-only share.
+- 1514: leetspeak variants of common passwords pass the blocklist.

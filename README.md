@@ -10,7 +10,7 @@ Secure storage and controlled sharing of sensitive documents. This is the Group 
 vaultspace/
   server/              Node.js server (no npm dependencies)
     src/               app code (see docs/VIVA_GUIDE.md §7 for a file-by-file tour)
-    test/              22 tests (access control, races, limits, enumeration, mail client...)
+    test/              23 tests (access control, races, limits, enumeration, mail client...)
     scripts/make-cert.sh   TLS key + self-signed certificate that the app pins
     deploy/            VM setup script, hardened systemd unit, config template
   android/             Android app (Kotlin, Android framework only)
